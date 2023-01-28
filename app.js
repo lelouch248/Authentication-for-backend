@@ -1,13 +1,13 @@
-require('dotenv').config()
+require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
+// const md5 = require("md5");
 mongoose.set("strictQuery", true);
-const encrypt = require('mongoose-encryption');
-
-
-
+// const encrypt = require('mongoose-encryption');
 
 const app = express();
 
@@ -25,8 +25,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
 });
 
-
-userSchema.plugin(encrypt,{secret:process.env.SECRET ,encryptedFields:['password']})
+// userSchema.plugin(encrypt,{secret:process.env.SECRET ,encryptedFields:['password']})
 
 const User = new mongoose.model("User", userSchema);
 
@@ -41,19 +40,21 @@ app
   })
   .post((req, res) => {
     const email = req.body.username;
-    const password = req.body.password;
-    User.findOne({email:email}, (err, foundUser) => {
+    const password = md5(req.body.password);
+    User.findOne({ email: email }, (err, foundUser) => {
       if (err) {
         console.log(err);
       } else {
-        if (foundUser.password === password) {
+        bcrypt.compare(password, foundUser.password, (err, result) => {
+          if (result === true) {
             res.render("secrets");
-        }
-        res.send("Wrong password/Username");
-    }
-      });
+          } else {
+            res.send("Wrong password/Username");
+          }
+        });
+      }
     });
-
+  });
 
 app
   .route("/register")
@@ -61,16 +62,18 @@ app
     res.render("register");
   })
   .post((req, res) => {
-    const newUser = new User({
-      email: req.body.username,
-      password: req.body.password,
-    });
-    newUser.save((err) => {
-      if (err) {
-        console.log(err);
-      } else {
-        res.render("secrets");
-      }
+    bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
+      const newUser = new User({
+        email: req.body.username,
+        password: hash,
+      });
+      newUser.save((err) => {
+        if (err) {
+          console.log(err);
+        } else {
+          res.render("secrets");
+        }
+      });
     });
   });
 
